@@ -24,7 +24,7 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles?
 };
 
 function AppContent() {
-  const { user, dbStatus } = useAuth();
+  const { user } = useAuth();
   
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">

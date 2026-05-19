@@ -3,8 +3,18 @@ import mongoose from 'mongoose';
 import { Product } from '../models/Product.js';
 import { User } from '../models/User.js';
 import { AppConfig } from '../models/AppConfig.js';
+import { resetMockProducts } from './productController.js';
 
 export const seedDatabase = async (req: Request, res: Response) => {
+    if (mongoose.connection.readyState !== 1) {
+        resetMockProducts();
+        return res.json({ 
+            success: true, 
+            message: 'Demo records initialized (Memory Only).',
+            demo: true
+        });
+    }
+
     try {
         // Sample Products from seed script
         const nepaliProducts = [

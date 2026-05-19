@@ -7,8 +7,77 @@ import { AuditLog } from '../models/AuditLog.js';
 import mongoose from 'mongoose';
 import Decimal from 'decimal.js';
 import { sendBillingSMS } from '../services/smsService.js';
+import { MOCK_PRODUCTS } from './productController.js';
+
+export const MOCK_TRANSACTIONS = [
+    { 
+        _id: 't1', 
+        invoiceId: 'DEMO-INV-1001', 
+        grandTotal: 1450, 
+        subtotal: 1283.18,
+        totalVAT: 166.82,
+        paymentMode: 'Cash', 
+        paymentStatus: 'Completed', 
+        items: [
+            { productName: 'Sample Item 1', quantity: 2, unitPrice: 500, subtotal: 1000 },
+            { productName: 'Sample Item 2', quantity: 1, unitPrice: 283.18, subtotal: 283.18 }
+        ],
+        customerName: 'Demo Customer',
+        createdAt: new Date(Date.now() - 86400000) 
+    },
+    { 
+        _id: 't2', 
+        invoiceId: 'DEMO-INV-1002', 
+        grandTotal: 250, 
+        subtotal: 221.24,
+        totalVAT: 28.76,
+        paymentMode: 'eSewa', 
+        paymentStatus: 'Completed', 
+        items: [
+            { productName: 'Small Snack', quantity: 5, unitPrice: 44.25, subtotal: 221.24 }
+        ],
+        customerName: 'Walk-in Customer',
+        createdAt: new Date(Date.now() - 3600000) 
+    }
+];
 
 export const checkout = async (req: any, res: Response) => {
+  // DEMO MODE BYPASS
+  if (mongoose.connection.readyState !== 1) {
+      // Update Mock Stock
+      req.body.items.forEach((item: any) => {
+          const product = MOCK_PRODUCTS.find(p => p._id === item.productId);
+          if (product) {
+              product.stockQuantity = Math.max(0, product.stockQuantity - item.quantity);
+          }
+      });
+
+      const sub = req.body.items.reduce((acc: number, item: any) => acc + (item.quantity * (item.unitPrice || 100)), 0);
+      const vat = sub * 0.13;
+      const total = sub + vat;
+
+      const demoTransaction = {
+          _id: `demo_tx_${Date.now()}`,
+          invoiceId: `DEMO-INV-${Date.now()}`,
+          grandTotal: total,
+          subtotal: sub,
+          totalVAT: vat,
+          loyaltyDiscount: 0,
+          paymentMode: req.body.paymentMode,
+          paymentStatus: 'Completed',
+          items: req.body.items,
+          createdAt: new Date(),
+          customerPhone: req.body.customerPhone,
+          customerName: req.body.customerName || 'Walk-in'
+      };
+      MOCK_TRANSACTIONS.unshift(demoTransaction as any);
+      return res.status(201).json({
+          success: true,
+          transaction: demoTransaction,
+          message: 'Checkout successful (DEMO MODE). Stock updated in memory.'
+      });
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -113,7 +182,7 @@ export const checkout = async (req: any, res: Response) => {
     // Broadcast stock update via socket (handled in route or socket utility)
     res.status(201).json({
       success: true,
-      transaction,
+      transaction: { ...transaction.toObject(), customerName: customer?.fullName || 'Walk-in' },
       message: 'Checkout successful'
     });
   } catch (error: any) {

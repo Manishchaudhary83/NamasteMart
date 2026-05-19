@@ -12,9 +12,22 @@ import { Transaction } from '../models/Transaction.js';
 
 const router = express.Router();
 
-// Apply DB check to all routes except health and root
+// Apply DB check to all routes below this point
 router.use((req, res, next) => {
-    if (req.path === '/health' || req.path === '/') return next();
+    // Allow health check, root, login, checkout and all GET requests to bypass DB block for demo mode
+    // Also allow POST /api/products and POST /api/customers for demo flow
+    const isPublicOrDemo = req.path === '/health' || 
+                          req.path === '/' || 
+                          req.path === '/auth/login' || 
+                          req.path === '/billing/checkout' ||
+                          req.path.startsWith('/products') || 
+                          req.path.startsWith('/customers') ||
+                          req.path === '/system/seed' ||
+                          req.path === '/config' ||
+                          req.method === 'GET' ||
+                          req.path.startsWith('/auth/register');
+    
+    if (isPublicOrDemo) return next();
     dbCheckMiddleware(req, res, next);
 });
 
@@ -38,12 +51,24 @@ router.post('/customers', protect, custCtrl.createCustomer);
 // Billing
 router.post('/billing/checkout', protect, billCtrl.checkout);
 router.get('/billing/transactions', protect, async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.json(billCtrl.MOCK_TRANSACTIONS);
+    }
     const transactions = await Transaction.find({}).sort({ createdAt: -1 }).limit(100);
     res.json(transactions);
 });
 
 // Config
 router.get('/config', async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.json({
+            martName: 'Namaste Mart (DEMO)',
+            address: 'Kathmandu, Nepal',
+            phone: '01-44455566',
+            vatPercentage: 13,
+            loyaltyConfig: { pointsPerNPR: 0.1 }
+        });
+    }
     let config = await AppConfig.findOne();
     if (!config) {
         config = await AppConfig.create({ martName: 'Namaste Mart' });
@@ -52,12 +77,20 @@ router.get('/config', async (req, res) => {
 });
 
 router.put('/config', protect, authorize('Admin'), async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.json({ ...req.body, message: 'Settings saved in temporary session only (Demo Mode)' });
+    }
     const config = await AppConfig.findOneAndUpdate({}, req.body, { new: true, upsert: true });
     res.json(config);
 });
 
 // Analytics
 router.get('/analytics/sales', protect, authorize('Admin'), async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        const total = billCtrl.MOCK_TRANSACTIONS.reduce((acc, tx) => acc + tx.grandTotal, 0);
+        const count = billCtrl.MOCK_TRANSACTIONS.length;
+        return res.json({ total, count });
+    }
     // Simple mock analytics
     const totalSales = await Transaction.aggregate([
         { $group: { _id: null, total: { $sum: '$grandTotal' }, count: { $sum: 1 } } }

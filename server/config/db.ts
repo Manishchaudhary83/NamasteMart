@@ -12,10 +12,12 @@ export const connectDB = async () => {
   // Sanitize: Remove accidental surrounding quotes and whitespace
   uri = uri.trim().replace(/^["'](.+)["']$/, '$1').trim();
 
+  if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+    console.warn('❌ Invalid MONGODB_URI scheme.');
+    return false;
+  }
+
   try {
-    const maskedUri = uri.replace(/\/\/.*@/, '//****:****@');
-    console.log(`🔌 Attempting to connect to: ${maskedUri}`);
-    
     // Disable command buffering so that operations fail fast if there is no connection
     mongoose.set('bufferCommands', false);
     const conn = await mongoose.connect(uri, {

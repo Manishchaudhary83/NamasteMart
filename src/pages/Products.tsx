@@ -4,20 +4,18 @@ import axios from 'axios';
 import { Search, Plus, Edit2, Trash2, Package, Tag, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Products() {
-  const { user, dbStatus } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  const { dbStatus } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
 
-  const { data: products, isLoading, error, refetch } = useQuery({ 
+  const { data: products, isLoading } = useQuery({ 
     queryKey: ['products', search], 
-    queryFn: () => axios.get(`/api/products?search=${search}`).then(res => res.data),
-    staleTime: 5000 
+    queryFn: () => axios.get(`/api/products?search=${search}`).then(res => res.data) 
   });
 
   const deleteMutation = useMutation({
@@ -28,11 +26,21 @@ export default function Products() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
+    const rawData = Object.fromEntries(formData.entries());
+    
+    // Explicitly cast numeric fields
+    const data = {
+      ...rawData,
+      sellingPrice: Number(rawData.sellingPrice),
+      stockQuantity: Number(rawData.stockQuantity),
+      reorderLevel: Number(rawData.reorderLevel),
+      taxRate: Number(rawData.taxRate)
+    };
     
     try {
       if (editingProduct) {
         await axios.put(`/api/products/${editingProduct._id}`, data);
+        alert('Product updated successfully');
       } else {
         await axios.post('/api/products', data);
         setSearch(''); // Clear search so the new item is visible
@@ -56,13 +64,7 @@ export default function Products() {
         </div>
         <button 
           onClick={() => { setEditingProduct(null); setModalOpen(true); }}
-          disabled={!isAdmin}
-          className={cn(
-            "flex items-center gap-2 px-5 py-2 rounded font-black text-[10px] uppercase shadow-md transition-all tracking-widest",
-            isAdmin 
-              ? "bg-emerald-600 text-white hover:bg-emerald-700" 
-              : "bg-slate-200 text-slate-400 cursor-not-allowed"
-          )}
+          className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2 rounded font-black text-[10px] uppercase shadow-md hover:bg-emerald-700 transition-all tracking-widest"
         >
           <Plus size={14} /> NEW ENTRY
         </button>
@@ -96,8 +98,6 @@ export default function Products() {
           <tbody className="divide-y divide-slate-100">
             {isLoading ? (
                <tr><td colSpan={6} className="p-12 text-center text-slate-400 font-mono text-xs uppercase">Retrieving Data...</td></tr>
-            ) : error ? (
-               <tr><td colSpan={6} className="p-12 text-center text-rose-500 font-black text-[10px] uppercase tracking-widest">Network Error: Failed to synchronization with catalog</td></tr>
             ) : Array.isArray(products) && products.length > 0 ? products.map((p: any) => (
               <tr key={p._id} className="hover:bg-slate-50/50 transition-colors group">
                 <td className="px-5 py-2.5">
@@ -133,17 +133,12 @@ export default function Products() {
                 </td>
                 <td className="px-5 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {isAdmin && (
-                      <>
-                        <button onClick={() => { setEditingProduct(p); setModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-transparent hover:border-blue-100 rounded">
-                          <Edit2 size={14} />
-                        </button>
-                        <button onClick={() => { if(confirm('Delete product?')) deleteMutation.mutate(p._id); }} className="p-1.5 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-100 rounded">
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                    {!isAdmin && <span className="text-[9px] font-black text-slate-300 uppercase italic">Read Only</span>}
+                    <button onClick={() => { setEditingProduct(p); setModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-transparent hover:border-blue-100 rounded">
+                      <Edit2 size={14} />
+                    </button>
+                    <button onClick={() => { if(confirm('Delete product?')) deleteMutation.mutate(p._id); }} className="p-1.5 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-100 rounded">
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -151,12 +146,7 @@ export default function Products() {
                 <tr>
                     <td colSpan={6} className="p-20 text-center">
                         <Package className="mx-auto text-slate-200 mb-3" size={40} />
-                        <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                            {search ? `No matches found for "${search}"` : 'Your product catalog is empty'}
-                        </p>
-                        {!search && (
-                            <p className="text-slate-300 text-[9px] uppercase font-bold mt-1 tracking-tighter italic">Register a new item to populate the system</p>
-                        )}
+                        <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">No matching records found in catalog</p>
                     </td>
                 </tr>
             )}

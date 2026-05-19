@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Settings, Store, CreditCard, Percent, FileText, Save } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 export default function Configuration() {
   const queryClient = useQueryClient();
@@ -12,30 +12,34 @@ export default function Configuration() {
     mutationFn: (newConfig: any) => axios.put('/api/config', newConfig),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['config'] });
-      alert('Settings updated successfully!');
+      alert('SUCCESS: System configuration cycle updated. All nodes synchronized.');
+    },
+    onError: (error: any) => {
+      console.error('Config update failed:', error);
+      alert('FAILURE: Could not commit changes. ' + (error.response?.data?.message || 'Server rejected the payload.'));
     }
   });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('Submitting configuration change...');
     const formData = new FormData(e.currentTarget);
     const rawData = Object.fromEntries(formData.entries());
     
-    // Structure the data properly for the backend schema
-    const data = {
-        martName: rawData.martName,
-        address: rawData.address,
-        phone: rawData.phone,
-        esewaMerchantCode: rawData.esewaMerchantCode,
-        esewaSecretKey: rawData.esewaSecretKey,
-        vatPercentage: Number(rawData.vatPercentage),
-        loyaltyConfig: {
-            pointsPerNPR: Number(rawData.loyaltyPointsPerNPR)
-        },
-        taxRegistrationNumber: rawData.taxRegistrationNumber,
-        receiptFooterText: rawData.receiptFooterText
+    // Correctly map and cast types for the backend
+    const data: any = {
+      ...rawData,
+      vatPercentage: Number(rawData.vatPercentage || 0),
+      loyaltyConfig: {
+        pointsPerNPR: Number(rawData.loyaltyPointsPerNPR || 0),
+        redemptionRate: 1
+      }
     };
     
+    // Clean up auxiliary fields
+    delete data.loyaltyPointsPerNPR;
+    
+    console.log('Processed data:', data);
     mutation.mutate(data);
   };
 
@@ -97,7 +101,7 @@ export default function Configuration() {
             </h3>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Statutory VAT (%)</label>
-              <input name="vatPercentage" type="number" step="0.01" defaultValue={config?.vatPercentage} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm font-mono font-bold" />
+              <input name="vatPercentage" type="number" defaultValue={config?.vatPercentage} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm font-mono font-bold" />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Loyalty Yield Index (per 100 NPR)</label>
@@ -152,9 +156,14 @@ export default function Configuration() {
         <div className="flex justify-end pt-4">
           <button 
             type="submit"
-            className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all"
+            disabled={mutation.isPending}
+            className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all disabled:opacity-50 disabled:cursor-wait"
           >
-            <Save size={16} /> Update Framework
+            {mutation.isPending ? 'Syncing...' : (
+              <>
+                <Save size={16} /> Update Framework
+              </>
+            )}
           </button>
         </div>
       </form>

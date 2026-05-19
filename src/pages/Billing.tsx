@@ -4,8 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus, Trash2, CreditCard, Wallet, User as UserIcon, Barcode, Phone, ReceiptText, ShoppingCart } from 'lucide-react';
 import axios from 'axios';
 import { formatCurrency, cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
+import PrintableReceipt from '../components/PrintableReceipt';
 
 export default function Billing() {
   const { items, addItem, removeItem, updateQuantity, subtotal, totalVAT, grandTotal, clearCart } = useCart();
@@ -18,7 +20,56 @@ export default function Billing() {
   const [qrModal, setQrModal] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [historyModal, setHistoryModal] = useState(false);
+  const [customerModal, setCustomerModal] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({ fullName: '', phoneNumber: '' });
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [config, setConfig] = useState<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data } = await axios.get('/api/config');
+        setConfig(data);
+      } catch (e) {
+        console.error('Failed to fetch config', e);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const fetchTransactions = async () => {
+    try {
+      const { data } = await axios.get('/api/billing/transactions');
+      setTransactions(data);
+      setHistoryModal(true);
+    } catch (e) {
+      alert('Failed to fetch transactions');
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'F4') {
+        e.preventDefault();
+        fetchTransactions();
+      }
+      if (e.key === 'Escape') {
+        setShowReceipt(false);
+        setHistoryModal(false);
+        setCustomerModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (search.length > 2) {
@@ -33,13 +84,23 @@ export default function Billing() {
     }
   }, [search]);
 
+  useEffect(() => {
+    if (!customerPhone.trim()) {
+      setCustomer(null);
+    }
+  }, [customerPhone]);
+
   const handlePhoneLookup = async () => {
-    if (customerPhone.length === 10) {
-      try {
-        const { data } = await axios.get(`/api/customers/${customerPhone}`);
-        setCustomer(data);
-      } catch (e) {
-        setCustomer(null);
+    if (!customerPhone.trim()) return;
+    try {
+      const { data } = await axios.get(`/api/customers/${customerPhone}`);
+      setCustomer(data);
+    } catch (e: any) {
+      setCustomer(null);
+      if (e.response?.status === 404) {
+        alert('Customer not found with this phone number.');
+      } else {
+        alert('Error looking up customer.');
       }
     }
   };
@@ -48,17 +109,24 @@ export default function Billing() {
     e.preventDefault();
     if (!search.trim()) return;
     
+    setIsProcessing(true);
     try {
       const { data } = await axios.get(`/api/products/barcode/${search.trim()}`);
       addItem(data);
       setSearch('');
+      setProducts([]);
+      // Visual feedback could be added here if needed, but adding to cart is usually enough
     } catch (e: any) {
       // If not found by barcode, try searching by name and take the first exact match
       try {
         const { data: searchResults } = await axios.get(`/api/products?search=${search.trim()}`);
         if (searchResults.length > 0) {
           // If there's an exact name match, add it
-          const exactMatch = searchResults.find((p: any) => p.productName.toLowerCase() === search.trim().toLowerCase());
+          const exactMatch = searchResults.find((p: any) => 
+            p.productName.toLowerCase() === search.trim().toLowerCase() ||
+            p.barcode === search.trim()
+          );
+          
           if (exactMatch) {
             addItem(exactMatch);
             setSearch('');
@@ -68,11 +136,18 @@ export default function Billing() {
             addItem(searchResults[0]);
             setSearch('');
             setProducts([]);
+          } else {
+            // Multiple results but no exact match - keep search open for selection
+            alert(`Found ${searchResults.length} matches. Please select from the dropdown.`);
           }
+        } else {
+          alert('Item not found. Please try again or search by name.');
         }
       } catch (err) {
-        console.error('Search failed', err);
+        alert('Search failed. Check your connection.');
       }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -89,26 +164,102 @@ export default function Billing() {
   const handleCheckout = async () => {
     setIsProcessing(true);
     try {
-      await axios.post('/api/billing/checkout', {
+      const { data } = await axios.post('/api/billing/checkout', {
         items,
         customerPhone,
+        customerName: customer?.fullName || 'Walk-in',
         paymentMode,
         paymentReferenceId: 'REF-' + Date.now()
       });
-      alert('Transaction Completed!');
+      
+      setLastTransaction(data.transaction);
+      setShowReceipt(true);
+      
       clearCart();
       setCustomerPhone('');
       setCustomer(null);
       setQrModal(false);
     } catch (error: any) {
-      alert('Checkout Failed: ' + error.response?.data?.message || error.message);
+      alert('Checkout Failed: ' + (error.response?.data?.message || error.message));
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleRegisterCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { data } = await axios.post('/api/customers', newCustomerData);
+      setCustomer(data);
+      setCustomerPhone(data.phoneNumber);
+      setCustomerModal(false);
+      setNewCustomerData({ fullName: '', phoneNumber: '' });
+      alert('Customer Registered Successfully!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Registration failed');
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-0.5 h-[calc(100vh-6rem)] bg-slate-200 -m-8">
+      {showReceipt && (
+        <PrintableReceipt 
+          transaction={lastTransaction} 
+          config={config} 
+          onClose={() => setShowReceipt(false)} 
+        />
+      )}
+
+      {historyModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-end">
+          <motion.div 
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-900 flex items-center gap-3">
+                <ReceiptText className="text-emerald-600" />
+                History
+              </h2>
+              <button onClick={() => setHistoryModal(false)} className="text-slate-400 hover:text-slate-900 transition-colors">
+                CLOSE
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {transactions.map(tx => (
+                <div key={tx._id} className="p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors group">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-bold text-slate-900">{tx.invoiceId}</p>
+                      <p className="text-[10px] text-slate-400 font-mono italic">
+                        {format(new Date(tx.createdAt), 'MMM dd, yyyy HH:mm')}
+                      </p>
+                    </div>
+                    <p className="font-black text-emerald-600 font-mono">{formatCurrency(tx.grandTotal)}</p>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 font-black uppercase text-slate-500">{tx.paymentMode}</span>
+                    <button 
+                      onClick={() => {
+                        setLastTransaction(tx);
+                        setShowReceipt(true);
+                        setHistoryModal(false);
+                      }}
+                      className="text-[10px] font-black text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      REPRINT
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Left Panel: Cart & Search */}
       <div className="lg:col-span-8 flex flex-col bg-white overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex gap-3 shadow-sm z-10">
@@ -165,6 +316,12 @@ export default function Billing() {
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col">
+          {items.length > 0 && dbStatus === 'disconnected' && (
+             <div className="bg-amber-50 px-4 py-1.5 border-b border-amber-100 flex items-center justify-between">
+                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⚠️ Operational Notice: System in Demo Mode (Database Offline)</p>
+                <p className="text-[9px] font-bold text-amber-500 italic">Changes will not persist</p>
+             </div>
+          )}
           <div className="flex-1 overflow-y-auto">
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-300 p-8">
@@ -220,6 +377,7 @@ export default function Billing() {
           <div className="flex gap-4">
              <span>[F1] Search</span>
              <span>[F2] Edit Qty</span>
+             <button onClick={fetchTransactions} className="hover:text-emerald-600 transition-colors uppercase">[F4] History</button>
              <span>[F8] Cash</span>
              <span>[F10] eSewa</span>
              <span>[F12] Checkout</span>
@@ -236,7 +394,15 @@ export default function Billing() {
         <div className="p-5 bg-slate-50 border-b border-slate-200">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Lookup</h3>
-            <button className="text-[10px] font-black text-emerald-600 hover:underline">+ REGISTER</button>
+            <button 
+              onClick={() => {
+                setNewCustomerData({ ...newCustomerData, phoneNumber: customerPhone });
+                setCustomerModal(true);
+              }}
+              className="text-[10px] font-black text-emerald-600 hover:underline"
+            >
+              + REGISTER
+            </button>
           </div>
           <div className="flex gap-1.5 mb-4">
             <input 
@@ -268,7 +434,7 @@ export default function Billing() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-black text-slate-900 text-sm tracking-tight">{customer.fullName}</p>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Points: <span className="text-emerald-600">{customer.loyaltyPoints.toLocaleString()}</span></p>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Points: <span className="text-emerald-600">{(customer.loyaltyPoints || 0).toLocaleString()}</span></p>
                 </div>
                 <span className={cn(
                   "px-1.5 py-0.5 text-[9px] rounded font-black border",
@@ -402,6 +568,62 @@ export default function Billing() {
                   Cancel
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Customer Registration Modal */}
+      <AnimatePresence>
+        {customerModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              <div className="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                  <UserIcon size={16} className="text-emerald-600" />
+                  New Customer Enrollment
+                </h3>
+                <button onClick={() => setCustomerModal(false)} className="text-slate-400 hover:text-slate-900">
+                  CLOSE
+                </button>
+              </div>
+              <form onSubmit={handleRegisterCustomer} className="p-6 space-y-4">
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
+                    <input 
+                      required
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
+                      placeholder="ENTER NAME..."
+                      value={newCustomerData.fullName}
+                      onChange={e => setNewCustomerData({...newCustomerData, fullName: e.target.value})}
+                    />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Primary Contact (10 digits)</label>
+                    <input 
+                      required
+                      maxLength={10}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold text-sm tracking-widest"
+                      placeholder="98XXXXXXXX"
+                      value={newCustomerData.phoneNumber}
+                      onChange={e => setNewCustomerData({...newCustomerData, phoneNumber: e.target.value.replace(/\D/g, '')})}
+                    />
+                 </div>
+                 <div className="p-3 bg-emerald-50 border border-emerald-100 rounded text-[10px] text-emerald-700 font-bold uppercase tracking-tight">
+                    New customers are automatically enrolled in the Basic Loyalty tier (0.1 points per NPR).
+                 </div>
+                 <button 
+                  type="submit"
+                  className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98]"
+                >
+                  Complete Registration
+                </button>
+              </form>
             </motion.div>
           </div>
         )}

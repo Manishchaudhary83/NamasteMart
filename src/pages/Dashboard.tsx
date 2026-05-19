@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { TrendingUp, Users, ShoppingBag, Clock, Package, AlertCircle } from 'lucide-react';
+import { TrendingUp, Users, ShoppingBag, Clock, Package, AlertCircle, X } from 'lucide-react';
 import { formatCurrency, cn } from '../lib/utils';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
+import PrintableReceipt from '../components/PrintableReceipt';
 
 export default function Dashboard() {
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const { data: config } = useQuery({ queryKey: ['config'], queryFn: () => axios.get('/api/config').then(res => res.data) });
   const { data: sales } = useQuery({ queryKey: ['sales'], queryFn: () => axios.get('/api/analytics/sales').then(res => res.data) });
   const { data: transactions } = useQuery({ queryKey: ['transactions'], queryFn: () => axios.get('/api/billing/transactions').then(res => res.data) });
   const { data: products } = useQuery({ queryKey: ['products'], queryFn: () => axios.get('/api/products').then(res => res.data) });
@@ -59,18 +62,33 @@ export default function Dashboard() {
                       <th className="px-5 py-2">Timestamp</th>
                       <th className="px-5 py-2">Method</th>
                       <th className="px-5 py-2 text-right">Amount</th>
+                      <th className="px-5 py-2 text-right">Review</th>
                       <th className="px-5 py-2 text-right">Status</th>
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {Array.isArray(transactions) ? transactions.map((t: any) => (
-                    <tr key={t._id} className="hover:bg-slate-50 transition-all group">
+                    <tr 
+                      key={t._id} 
+                      onClick={() => setSelectedTransaction(t)}
+                      className="hover:bg-slate-50 transition-all group cursor-pointer"
+                    >
                       <td className="px-5 py-2.5 font-bold text-slate-900 font-mono text-sm uppercase tracking-tighter">{t.invoiceId}</td>
                       <td className="px-5 py-2.5 text-[10px] text-slate-500 font-medium">{new Date(t.createdAt).toLocaleString()}</td>
                       <td className="px-5 py-2.5">
                         <span className="text-[9px] font-black uppercase bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{t.paymentMode}</span>
                       </td>
                       <td className="px-5 py-2.5 text-right font-black text-slate-900 font-mono italic">{formatCurrency(t.grandTotal)}</td>
+                      <td className="px-5 py-2.5 text-right">
+                        <div className="flex justify-end">
+                          <button 
+                            className="p-1.5 bg-slate-50 text-slate-400 rounded-md border border-slate-100 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100 transition-all group-hover:scale-110"
+                            title="Review Invoice"
+                          >
+                            <TrendingUp size={14} className="rotate-45" />
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-5 py-2.5 text-right">
                         <span className={cn(
                           "text-[9px] font-black uppercase px-2 py-0.5 rounded border shadow-sm",
@@ -124,6 +142,24 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {selectedTransaction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:p-0 print:bg-white">
+          <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto relative print:shadow-none print:max-w-none print:max-h-none print:overflow-visible">
+            <button 
+              onClick={() => setSelectedTransaction(null)}
+              className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors z-[60] print:hidden"
+            >
+              <X size={20} />
+            </button>
+            <PrintableReceipt 
+              transaction={selectedTransaction} 
+              config={config}
+              onClose={() => setSelectedTransaction(null)} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
