@@ -6,8 +6,8 @@ import { Mail, Lock, Store } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
-  const [email, setEmail] = useState('admin@namastemart.com');
-  const [password, setPassword] = useState('AdminPassword123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -77,14 +77,46 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-10 pt-6 border-t border-slate-100 grid grid-cols-2 gap-3">
-          <div className="p-3 bg-slate-50 border border-slate-100 rounded">
-             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Operator Role</p>
-             <p className="text-[9px] text-slate-600 font-mono font-bold mt-1">cashier@demo.com</p>
-          </div>
-          <div className="p-3 bg-slate-50 border border-slate-100 rounded">
-             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Admin Role</p>
-             <p className="text-[9px] text-slate-600 font-mono font-bold mt-1">admin@namastemart.com</p>
+        <div className="mt-8 pt-6 border-t border-slate-150 space-y-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 text-center">
+            ⚡ Quick-Select Demo Accounts
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('cashier@namastemart.com');
+                setPassword('cashierPass123');
+              }}
+              className="text-left p-3.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 rounded transition-all active:scale-[0.97] group"
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[9px] text-slate-400 group-hover:text-emerald-600 font-extrabold uppercase tracking-wider">Operator (Cashier)</span>
+                <span className="text-[8px] bg-slate-200/50 text-slate-600 px-1 py-0.5 rounded font-mono group-hover:bg-emerald-100 group-hover:text-emerald-700">Fill</span>
+              </div>
+              <p className="text-[9px] text-slate-600 font-mono font-bold truncate">cashier@namastemart.com</p>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+                Key: <span className="text-slate-700 font-bold group-hover:text-emerald-800 font-mono">cashierPass123</span>
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('admin@namastemart.com');
+                setPassword('adminPass123');
+              }}
+              className="text-left p-3.5 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 border border-slate-200 rounded transition-all active:scale-[0.97] group"
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[9px] text-slate-400 group-hover:text-indigo-600 font-extrabold uppercase tracking-wider">Administrator</span>
+                <span className="text-[8px] bg-slate-200/50 text-slate-600 px-1 py-0.5 rounded font-mono group-hover:bg-indigo-100 group-hover:text-indigo-700">Fill</span>
+              </div>
+              <p className="text-[9px] text-slate-600 font-mono font-bold truncate">admin@namastemart.com</p>
+              <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+                Key: <span className="text-slate-700 font-bold group-hover:text-indigo-800 font-mono font-mono">adminPass123</span>
+              </p>
+            </button>
           </div>
         </div>
       </motion.div>

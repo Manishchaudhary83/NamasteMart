@@ -58,11 +58,33 @@ router.get('/billing/transactions', protect, async (req, res) => {
     res.json(transactions);
 });
 
+router.get('/billing/transactions/:id', protect, async (req, res) => {
+    const { id } = req.params;
+    if (mongoose.connection.readyState !== 1) {
+        const mockTx = billCtrl.MOCK_TRANSACTIONS.find(tx => tx._id === id);
+        if (mockTx) return res.json(mockTx);
+        return res.status(404).json({ message: 'Transaction not found in offline transaction history' });
+    }
+    try {
+        const transaction = await Transaction.findById(id);
+        if (!transaction) {
+            const mockTx = billCtrl.MOCK_TRANSACTIONS.find(tx => tx._id === id);
+            if (mockTx) return res.json(mockTx);
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
+        res.json(transaction);
+    } catch (e: any) {
+        const mockTx = billCtrl.MOCK_TRANSACTIONS.find(tx => tx._id === id);
+        if (mockTx) return res.json(mockTx);
+        res.status(500).json({ message: e.message });
+    }
+});
+
 // Config
 router.get('/config', async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
         return res.json({
-            martName: 'Namaste Mart (DEMO)',
+            martName: 'Namaste Mart',
             address: 'Kathmandu, Nepal',
             phone: '01-44455566',
             vatPercentage: 13,
@@ -78,7 +100,7 @@ router.get('/config', async (req, res) => {
 
 router.put('/config', protect, authorize('Admin'), async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
-        return res.json({ ...req.body, message: 'Settings saved in temporary session only (Demo Mode)' });
+        return res.json({ ...req.body, message: 'Settings saved in temporary session only (Temporary Mode)' });
     }
     const config = await AppConfig.findOneAndUpdate({}, req.body, { new: true, upsert: true });
     res.json(config);

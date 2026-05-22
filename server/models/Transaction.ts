@@ -16,6 +16,7 @@ const TransactionSchema = new Schema({
   subtotal: { type: Number, required: true },
   totalVAT: { type: Number, required: true },
   loyaltyDiscount: { type: Number, default: 0 },
+  manualDiscount: { type: Number, default: 0 },
   grandTotal: { type: Number, required: true },
   paymentMode: { type: String, enum: ['Cash', 'eSewa_QR', 'Card'], required: true },
   paymentReferenceId: { type: String },

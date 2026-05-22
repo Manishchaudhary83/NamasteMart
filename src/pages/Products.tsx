@@ -13,6 +13,65 @@ export default function Products() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
 
+  const [basePriceInput, setBasePriceInput] = useState('');
+  const [priceWithVatInput, setPriceWithVatInput] = useState('');
+  const [taxRateInput, setTaxRateInput] = useState(13);
+
+  // Sync state with editing product
+  React.useEffect(() => {
+    if (modalOpen) {
+      if (editingProduct) {
+        const rate = editingProduct.taxRate ?? 13;
+        const pWithVat = editingProduct.sellingPrice || 0;
+        const bPrice = pWithVat / (1 + rate / 100);
+        setTaxRateInput(rate);
+        setBasePriceInput(bPrice.toFixed(2));
+        setPriceWithVatInput(pWithVat.toString());
+      } else {
+        setTaxRateInput(13);
+        setBasePriceInput('');
+        setPriceWithVatInput('');
+      }
+    }
+  }, [modalOpen, editingProduct]);
+
+  const handleBasePriceChange = (val: string) => {
+    setBasePriceInput(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      const calculated = num * (1 + taxRateInput / 100);
+      setPriceWithVatInput(calculated.toFixed(2));
+    } else {
+      setPriceWithVatInput('');
+    }
+  };
+
+  const handlePriceWithVatChange = (val: string) => {
+    setPriceWithVatInput(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      const calculated = num / (1 + taxRateInput / 100);
+      setBasePriceInput(calculated.toFixed(2));
+    } else {
+      setBasePriceInput('');
+    }
+  };
+
+  const handleTaxRateChange = (newRate: number) => {
+    setTaxRateInput(newRate);
+    const numBase = parseFloat(basePriceInput);
+    if (!isNaN(numBase)) {
+      const calculated = numBase * (1 + newRate / 100);
+      setPriceWithVatInput(calculated.toFixed(2));
+    } else {
+      const numVat = parseFloat(priceWithVatInput);
+      if (!isNaN(numVat)) {
+        const calculated = numVat / (1 + newRate / 100);
+        setBasePriceInput(calculated.toFixed(2));
+      }
+    }
+  };
+
   const { data: products, isLoading } = useQuery({ 
     queryKey: ['products', search], 
     queryFn: () => axios.get(`/api/products?search=${search}`).then(res => res.data) 
@@ -90,14 +149,15 @@ export default function Products() {
               <th className="px-5 py-3 w-1/3">Item Title / SKU</th>
               <th className="px-5 py-3">Dept / Category</th>
               <th className="px-5 py-3 text-center">UOM</th>
-              <th className="px-5 py-3">Selling Price (NPR)</th>
+              <th className="px-5 py-3 text-right">Selling Price (NPR)</th>
+              <th className="px-5 py-3 text-center">VAT</th>
               <th className="px-5 py-3">Inventory Count</th>
               <th className="px-5 py-3 text-right">Ops</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading ? (
-               <tr><td colSpan={6} className="p-12 text-center text-slate-400 font-mono text-xs uppercase">Retrieving Data...</td></tr>
+               <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-mono text-xs uppercase">Retrieving Data...</td></tr>
             ) : Array.isArray(products) && products.length > 0 ? products.map((p: any) => (
               <tr key={p._id} className="hover:bg-slate-50/50 transition-colors group">
                 <td className="px-5 py-2.5">
@@ -117,8 +177,21 @@ export default function Products() {
                 <td className="px-5 py-2.5 text-center">
                    <span className="text-[9px] text-slate-400 uppercase font-black">{p.unit}</span>
                 </td>
-                <td className="px-5 py-2.5 font-black text-slate-900 font-mono text-sm italic">
-                  {p.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <td className="px-5 py-2.5 text-right font-mono text-xs">
+                  <div className="font-bold text-slate-500">
+                    {formatCurrency(p.sellingPrice / (1 + (p.taxRate ?? 13) / 100))} <span className="text-[9px] text-slate-400 font-sans font-medium">(Excl.)</span>
+                  </div>
+                  <div className="font-black text-emerald-600 text-sm">
+                    {formatCurrency(p.sellingPrice)} <span className="text-[9px] text-emerald-500 font-sans font-bold">(Incl. VAT)</span>
+                  </div>
+                </td>
+                <td className="px-5 py-2.5 text-center">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-mono font-black border",
+                    (p.taxRate ?? 13) > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-100 text-slate-400 border-slate-200"
+                  )}>
+                    {(p.taxRate ?? 13)}%
+                  </span>
                 </td>
                 <td className="px-5 py-2.5">
                   <div className="flex items-center gap-2">
@@ -144,7 +217,7 @@ export default function Products() {
               </tr>
             )) : (
                 <tr>
-                    <td colSpan={6} className="p-20 text-center">
+                    <td colSpan={7} className="p-20 text-center">
                         <Package className="mx-auto text-slate-200 mb-3" size={40} />
                         <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">No matching records found in catalog</p>
                     </td>
@@ -168,11 +241,7 @@ export default function Products() {
                    <span className="text-[9px] font-black text-slate-400 uppercase">Product Module</span>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6">
-                   {dbStatus === 'disconnected' && (
-                       <div className="mb-4 p-2 bg-amber-50 border border-amber-100 rounded text-[9px] font-black text-amber-700 uppercase tracking-widest text-center">
-                           ⚠️ Operational Notice: Demo Mode Active (Records will not persist)
-                       </div>
-                   )}
+                   
                    <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Item Title</label>
@@ -191,8 +260,48 @@ export default function Products() {
                       <input name="unit" defaultValue={editingProduct?.unit || 'pcs'} required className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500 text-sm font-bold uppercase tracking-widest" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Selling Price (NPR)</label>
-                      <input name="sellingPrice" type="number" step="0.01" defaultValue={editingProduct?.sellingPrice} required className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500 text-sm font-mono italic font-bold" />
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Base Price (NPR Excl. VAT)</label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        value={basePriceInput} 
+                        onChange={(e) => handleBasePriceChange(e.target.value)} 
+                        placeholder="Excl. VAT amount" 
+                        required 
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500 text-sm font-mono italic font-bold" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Tax Configuration</label>
+                      <select 
+                        name="taxRate" 
+                        value={taxRateInput} 
+                        onChange={(e) => handleTaxRateChange(Number(e.target.value))} 
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500 text-xs font-black uppercase"
+                      >
+                          <option value="13">13% Standard VAT</option>
+                          <option value="0">0% Non-Taxable / Exempt</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 col-span-2 bg-emerald-50/30 p-2.5 rounded border border-emerald-100">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Selling Price (NPR VAT-Inclusive - Saved in Catalog)</label>
+                      <div className="relative mt-1">
+                        <input 
+                          name="sellingPrice" 
+                          type="number" 
+                          step="0.01" 
+                          value={priceWithVatInput} 
+                          onChange={(e) => handlePriceWithVatChange(e.target.value)} 
+                          required 
+                          className="w-full pl-3 pr-24 py-2 bg-white border border-emerald-200 rounded outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono italic text-emerald-950 font-black" 
+                        />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 px-1.5 py-0.5 bg-emerald-600 rounded text-[8px] font-black text-white uppercase tracking-wider font-sans">
+                          VAT Incl.
+                        </div>
+                      </div>
+                      <p className="text-[8px] text-slate-400 font-bold px-1 mt-1 uppercase tracking-wider font-sans">
+                        This amount incorporates {taxRateInput}% VAT automatically. Stored in Master Catalog.
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Inventory Count</label>
@@ -201,13 +310,6 @@ export default function Products() {
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Safety Stock Level</label>
                       <input name="reorderLevel" type="number" defaultValue={editingProduct?.reorderLevel || 10} required className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500 text-sm font-mono font-bold" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Tax Configuration</label>
-                      <select name="taxRate" defaultValue={editingProduct?.taxRate || 13} className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500 text-xs font-black uppercase">
-                          <option value="13">13% Standard VAT</option>
-                          <option value="0">0% Non-Taxable / Exempt</option>
-                      </select>
                     </div>
                   </div>
 

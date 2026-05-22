@@ -37,7 +37,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         barcode: product.barcode,
         quantity: 1,
         unitPrice: product.sellingPrice,
-        taxRate: product.taxRate || 13
+        taxRate: (product.taxRate !== undefined && product.taxRate !== null) ? Number(product.taxRate) : 13
       }];
     });
   };
@@ -51,8 +51,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => setItems([]);
 
-  const subtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-  const totalVAT = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity * (item.taxRate / 100)), 0);
+  // Reduce VAT from inventory price to find base price, then compute subtotal and add VAT
+  const subtotal = items.reduce((sum, item) => {
+    const rate = item.taxRate ?? 13;
+    const basePrice = item.unitPrice / (1 + rate / 100);
+    return sum + (basePrice * item.quantity);
+  }, 0);
+
+  const totalVAT = items.reduce((sum, item) => {
+    const rate = item.taxRate ?? 13;
+    const basePrice = item.unitPrice / (1 + rate / 100);
+    return sum + (basePrice * item.quantity * (rate / 100));
+  }, 0);
+
   const grandTotal = subtotal + totalVAT;
 
   return (

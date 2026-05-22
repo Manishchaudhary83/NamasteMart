@@ -21,122 +21,15 @@ export default function PrintableReceipt({ transaction, config, onClose }: Print
   }, [transaction]);
 
   const handlePrint = () => {
-    console.log('Triggering print dialog for bill...');
-    try {
-      // Create a temporary hidden iframe to print
-      const printFrame = document.createElement('iframe');
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      document.body.appendChild(printFrame);
-
-      const printArea = document.getElementById('receipt-print-area');
-      if (!printArea) return;
-
-      const content = `
-        <html>
-          <head>
-            <title>Receipt - ${transaction.invoiceId}</title>
-            <style>
-              body { font-family: monospace; padding: 20px; }
-              @media print {
-                body { padding: 0; margin: 0; }
-                @page { size: 80mm auto; margin: 0; }
-              }
-              ${Array.from(document.styleSheets)
-                .filter(s => !s.href || s.href.startsWith(window.location.origin))
-                .map(s => {
-                  try { return Array.from(s.cssRules).map(r => r.cssText).join('\n'); } catch { return ''; }
-                }).join('\n')}
-              #receipt-print-area { width: 100% !important; margin: 0 !important; }
-              .print\\:hidden { display: none !important; }
-            </style>
-          </head>
-          <body>
-            ${printArea.innerHTML}
-            <script>
-              window.onload = function() {
-                window.focus();
-                window.print();
-                setTimeout(() => {
-                  // We don't remove it immediately to allow print process to finish
-                }, 1000);
-              };
-            </script>
-          </body>
-        </html>
-      `;
-
-      printFrame.contentDocument?.open();
-      printFrame.contentDocument?.write(content);
-      printFrame.contentDocument?.close();
-
-      // Cleanup
-      setTimeout(() => document.body.removeChild(printFrame), 2000);
-    } catch (e) {
-      console.error('Print error:', e);
-      // Fallback to direct print
-      window.print();
+    console.log('Opening dedicated print view in another page...');
+    const printWindow = window.open(`/print-receipt/${transaction._id}`, '_blank');
+    if (!printWindow) {
+      alert('Pop-up blocked! Please allow pop-ups to print the bill in another page.');
     }
   };
 
   const openInNewTab = () => {
-    const printArea = document.getElementById('receipt-print-area');
-    if (!printArea) return;
-    
-    const newWindow = window.open('', '_blank');
-    if (!newWindow) {
-      alert('Pop-up blocked! Please allow pop-ups for this site.');
-      return;
-    }
-
-    newWindow.document.write(`
-      <html>
-        <head>
-          <title>Bill #${transaction.invoiceId}</title>
-          <style>
-            body { 
-              font-family: monospace; 
-              display: flex; 
-              justify-content: center; 
-              background: #f1f5f9; 
-              padding: 40px 0;
-            }
-            .paper {
-              background: white;
-              padding: 40px;
-              width: 80mm;
-              box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            }
-            @media print {
-              body { background: white; padding: 0; }
-              .paper { box-shadow: none; width: 80mm; padding: 4mm; }
-              @page { size: 80mm auto; margin: 0; }
-              .no-print { display: none; }
-            }
-            ${Array.from(document.styleSheets)
-              .filter(s => !s.href || s.href.startsWith(window.location.origin))
-              .map(s => {
-                try { return Array.from(s.cssRules).map(r => r.cssText).join('\n'); } catch { return ''; }
-              }).join('\n')}
-          </style>
-        </head>
-        <body>
-          <div class="paper">
-            ${printArea.innerHTML}
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    newWindow.document.close();
+    handlePrint();
   };
 
   const handleDownloadPDF = async () => {
@@ -312,13 +205,23 @@ export default function PrintableReceipt({ transaction, config, onClose }: Print
               <span>{formatCurrency(transaction.subtotal || 0)}</span>
             </div>
             <div className="flex justify-between text-[11px]">
-              <span>VAT (13%):</span>
+              <span>VAT:</span>
               <span>{formatCurrency(transaction.totalVAT || 0)}</span>
+            </div>
+            <div className="flex justify-between text-[11px] font-bold border-t border-black/10 pt-1">
+              <span>Amount with VAT:</span>
+              <span>{formatCurrency((transaction.subtotal || 0) + (transaction.totalVAT || 0))}</span>
             </div>
             {(transaction.loyaltyDiscount > 0) && (
               <div className="flex justify-between font-bold" style={{ color: '#dc2626' }}>
-                <span>Discount:</span>
+                <span>Loyalty Discount:</span>
                 <span>-{formatCurrency(transaction.loyaltyDiscount)}</span>
+              </div>
+            )}
+            {(transaction.manualDiscount > 0) && (
+              <div className="flex justify-between font-bold" style={{ color: '#dc2626' }}>
+                <span>Manual Discount:</span>
+                <span>-{formatCurrency(transaction.manualDiscount)}</span>
               </div>
             )}
             <div className="flex justify-between text-base font-black border-t-2 pt-2 mt-2" style={{ borderColor: '#000000', borderStyle: 'double' }}>

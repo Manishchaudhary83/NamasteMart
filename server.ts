@@ -18,7 +18,7 @@ async function startServer() {
     cors: { origin: '*' }
   });
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Database Connection
   const dbConnected = await connectDB();

@@ -25,13 +25,13 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
         if (decoded.id === 'demo_admin_id' || decoded.id === 'demo_cashier_id') {
             req.user = {
                 _id: decoded.id,
-                fullName: decoded.id === 'demo_admin_id' ? 'System Administrator' : 'Demo Cashier',
-                email: decoded.id === 'demo_admin_id' ? 'admin@namastemart.com' : 'cashier@demo.com',
+                fullName: decoded.id === 'demo_admin_id' ? 'System Administrator' : 'Mart Cashier',
+                email: decoded.id === 'demo_admin_id' ? 'admin@namastemart.com' : 'cashier@namastemart.com',
                 role: decoded.id === 'demo_admin_id' ? 'Admin' : 'Cashier'
             };
             return next();
         }
-        return res.status(503).json({ message: 'Database disconnected. Access denied for non-demo sessions.' });
+        return res.status(503).json({ message: 'Database disconnected. Access denied for offline-cached sessions.' });
     }
 
     req.user = await User.findById(decoded.id).select('-password');
