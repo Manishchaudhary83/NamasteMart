@@ -309,13 +309,23 @@ export const updateProduct = async (req: Request, res: Response) => {
 };
 
 export const deleteProduct = async (req: Request, res: Response) => {
-  if (mongoose.connection.readyState !== 1) {
-    const index = MOCK_PRODUCTS.findIndex(p => p._id === req.params.id);
-    if (index !== -1) {
-        MOCK_PRODUCTS.splice(index, 1);
+  try {
+    if (mongoose.connection.readyState !== 1 || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+      const index = MOCK_PRODUCTS.findIndex(p => p._id === req.params.id);
+      if (index !== -1) {
+          MOCK_PRODUCTS.splice(index, 1);
+          return res.json({ message: 'Product removed (Offline Cache)' });
+      }
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+          return res.status(400).json({ message: 'Invalid Product Identification format structure.' });
+      }
     }
-    return res.json({ message: 'Product removed (Offline Cache)' });
+    const deletedProduct = await Product.findByIdAndDelete(req.params.id);
+    if (!deletedProduct) {
+      return res.status(404).json({ message: 'Product not found in database records.' });
+    }
+    res.json({ message: 'Product removed' });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
   }
-  await Product.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Product removed' });
 };

@@ -3,15 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Search, Plus, Edit2, Trash2, Package, Tag, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function Products() {
   const { dbStatus } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [productToDelete, setProductToDelete] = useState<any>(null);
 
   const [basePriceInput, setBasePriceInput] = useState('');
   const [priceWithVatInput, setPriceWithVatInput] = useState('');
@@ -79,7 +82,14 @@ export default function Products() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => axios.delete(`/api/products/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Product successfully removed from the catalog.', 'Catalog Synced');
+    },
+    onError: (error: any) => {
+      const msg = error.response?.data?.message || 'Access denied or server error.';
+      toast.error(msg, 'Deletion Failed');
+    }
   });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -99,18 +109,18 @@ export default function Products() {
     try {
       if (editingProduct) {
         await axios.put(`/api/products/${editingProduct._id}`, data);
-        alert('Product updated successfully');
+        toast.success('Product updated successfully', 'Catalog Sync');
       } else {
         await axios.post('/api/products', data);
         setSearch(''); // Clear search so the new item is visible
-        alert('Product registered successfully');
+        toast.success('Product registered successfully', 'Catalog Sync');
       }
       setModalOpen(false);
       setEditingProduct(null);
       queryClient.invalidateQueries({ queryKey: ['products'] });
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Error saving product';
-      alert(msg);
+      toast.error(msg, 'Catalog Error');
     }
   };
 
@@ -209,7 +219,7 @@ export default function Products() {
                     <button onClick={() => { setEditingProduct(p); setModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-transparent hover:border-blue-100 rounded">
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => { if(confirm('Delete product?')) deleteMutation.mutate(p._id); }} className="p-1.5 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-100 rounded">
+                    <button onClick={() => setProductToDelete(p)} className="p-1.5 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-100 rounded">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -320,6 +330,49 @@ export default function Products() {
                     </button>
                   </div>
                 </form>
+             </motion.div>
+          </div>
+        )}
+
+        {productToDelete && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+             <motion.div 
+               initial={{ scale: 0.98, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.98, opacity: 0 }}
+               className="bg-white rounded border border-rose-200 shadow-2xl max-w-md w-full overflow-hidden"
+             >
+                <div className="px-6 py-4 bg-rose-50 border-b border-rose-100 flex justify-between items-center">
+                   <h3 className="text-xs font-black text-rose-900 uppercase tracking-[0.2em]">Deauthorize Product Entry</h3>
+                   <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest bg-rose-100 px-2 py-0.5 rounded">Destructive Action</span>
+                </div>
+                <div className="p-6 space-y-4">
+                   <p className="text-sm text-slate-700 leading-relaxed font-semibold">
+                     Are you sure you want to permanently delete the catalog record for <strong className="font-extrabold text-slate-900">"{productToDelete.productName}"</strong>?
+                   </p>
+                   <p className="text-xs text-rose-700/80 leading-relaxed bg-rose-50/50 p-3 rounded border border-rose-100/50 font-medium">
+                     This will dismantle its pricing registers, barcode triggers, and stock accounts immediately. This action is final and cannot be undone.
+                   </p>
+                   <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                     <button 
+                       type="button" 
+                       onClick={() => setProductToDelete(null)} 
+                       className="px-4 py-2 text-[10px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors cursor-pointer select-none"
+                     >
+                       Cancel
+                     </button>
+                     <button 
+                       type="button" 
+                       onClick={() => {
+                         deleteMutation.mutate(productToDelete._id);
+                         setProductToDelete(null);
+                       }} 
+                       className="px-6 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded font-black text-[10px] uppercase shadow-md transition-all tracking-widest cursor-pointer select-none"
+                     >
+                       Confirm Deletion
+                     </button>
+                   </div>
+                </div>
              </motion.div>
           </div>
         )}

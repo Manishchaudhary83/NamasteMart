@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { Search, Plus, Trash2, CreditCard, Wallet, User as UserIcon, Barcode, Phone, ReceiptText, ShoppingCart, Cpu, Keyboard } from 'lucide-react';
 import axios from 'axios';
 import { formatCurrency, cn } from '../lib/utils';
@@ -12,6 +13,7 @@ import PrintableReceipt from '../components/PrintableReceipt';
 export default function Billing() {
   const { items, addItem, removeItem, updateQuantity, subtotal, totalVAT, grandTotal, clearCart } = useCart();
   const { dbStatus } = useAuth();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [customerPhone, setCustomerPhone] = useState('');
@@ -241,7 +243,7 @@ export default function Billing() {
       setTransactions(data);
       setHistoryModal(true);
     } catch (e) {
-      alert('Failed to fetch transactions');
+      toast.error('Failed to fetch transactions from server.', 'History Database');
     }
   };
 
@@ -291,12 +293,13 @@ export default function Billing() {
     try {
       const { data } = await axios.get(`/api/customers/${customerPhone}`);
       setCustomer(data);
+      toast.success(`Customer "${data.fullName}" connected successfully.`, 'Loyalty Linked');
     } catch (e: any) {
       setCustomer(null);
       if (e.response?.status === 404) {
-        alert('Customer not found with this phone number.');
+        toast.warning('No registered customer is associated with this number.', 'Not Found');
       } else {
-        alert('Error looking up customer.');
+        toast.error('An error occurred while retrieving customer diagnostics.', 'Lookup Error');
       }
     }
   };
@@ -349,11 +352,11 @@ export default function Billing() {
             }, 2000);
           } else {
             // Multiple results but no exact match - keep search open for selection
-            alert(`Found ${searchResults.length} matches. Please select from the dropdown.`);
+            toast.info(`Found ${searchResults.length} matches. Please select the correct SKU from the dropdown.`, 'Barcode Selection');
             setScannerStatus('listening');
           }
         } else {
-          alert('Item not found. Please try again or search by name.');
+          toast.warning('Product item not found. Please re-scan or perform a visual name lookup.', 'Barcode Unrecognized');
           setScannerStatus('error');
           setScannerMessage(`Not found: "${search}"`);
           setTimeout(() => {
@@ -362,7 +365,7 @@ export default function Billing() {
           }, 3000);
         }
       } catch (err) {
-        alert('Search failed. Check your connection.');
+        toast.error('Local network search index request failed. Check server link.', 'Network Offline');
         setScannerStatus('idle');
       }
     } finally {
@@ -402,8 +405,9 @@ export default function Billing() {
       setCustomer(null);
       setManualDiscountInput('');
       setQrModal(false);
+      toast.success('Sale successfully authorized. Digital receipt compiled.', 'Register Cleared');
     } catch (error: any) {
-      alert('Checkout Failed: ' + (error.response?.data?.message || error.message));
+      toast.error('Checkout Transaction Authorization Failed: ' + (error.response?.data?.message || error.message), 'Register Failure');
     } finally {
       setIsProcessing(false);
     }
@@ -422,9 +426,9 @@ export default function Billing() {
       setCustomerPhone(data.phoneNumber);
       setCustomerModal(false);
       setNewCustomerData({ fullName: '', phoneNumber: '', membershipTier: 'Regular' });
-      alert('Customer Registered Successfully!');
+      toast.success(`Loyalty profile for "${data.fullName}" has been initialized.`, 'Client Enrolled');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Registration failed');
+      toast.error(err.response?.data?.message || 'Registration failed. Check profile parameters.', 'Enroller Failure');
     }
   };
 
@@ -791,7 +795,7 @@ export default function Billing() {
                      inputEl.select();
                    }
                  } else {
-                   alert('Cart is empty. Add an item first.');
+                   toast.warning('Activity aborted. Cart register contains 0 items.', 'Cart Void');
                  }
                }}
                className="px-2 py-1 rounded bg-white hover:bg-slate-200 border border-slate-200 flex items-center gap-1 shadow-sm transition-all active:scale-95 text-slate-700 cursor-pointer"
@@ -833,7 +837,7 @@ export default function Billing() {
                  if (items.length > 0) {
                    generatePaymentQR();
                  } else {
-                   alert('Cart is empty.');
+                   toast.warning('Activity aborted. Cart register contains 0 items.', 'Cart Void');
                  }
                }}
                className="px-2 py-1 rounded bg-white hover:bg-slate-200 border border-slate-200 flex items-center gap-1 shadow-sm transition-all active:scale-95 text-slate-700 cursor-pointer"

@@ -3,6 +3,7 @@ import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useToast } from '../contexts/ToastContext';
 
 interface PrintableReceiptProps {
   transaction: any;
@@ -11,6 +12,7 @@ interface PrintableReceiptProps {
 }
 
 export default function PrintableReceipt({ transaction, config, onClose }: PrintableReceiptProps) {
+  const { toast } = useToast();
   useEffect(() => {
     if (transaction) {
       const timer = setTimeout(() => {
@@ -24,7 +26,7 @@ export default function PrintableReceipt({ transaction, config, onClose }: Print
     console.log('Opening dedicated print view in another page...');
     const printWindow = window.open(`/print-receipt/${transaction._id}`, '_blank');
     if (!printWindow) {
-      alert('Pop-up blocked! Please allow pop-ups to print the bill in another page.');
+      toast.warning('Pop-up is blocked! Please enable pop-ups in your browser settings to print.', 'Printer Action Blocked');
     }
   };
 
@@ -69,7 +71,7 @@ export default function PrintableReceipt({ transaction, config, onClose }: Print
       console.log('PDF saved successfully');
     } catch (error) {
       console.error('PDF generation failed:', error);
-      alert('Failed to generate PDF. Attempting fallback print...');
+      toast.error('Failed to generate PDF receipt document. Retrying fallback browser print... ', 'PDF Compile Failure');
     }
   };
 
