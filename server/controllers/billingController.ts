@@ -194,6 +194,7 @@ export const checkout = async (req: any, res: Response) => {
       invoiceId,
       cashierId: req.user._id,
       customerId: customer?._id,
+      customerName: req.body.customerName || customer?.fullName || 'Walk-in',
       customerPhone,
       items: processedItems,
       subtotal: subtotal.toNumber(),

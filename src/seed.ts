@@ -116,6 +116,13 @@ const seed = async () => {
       throw new Error('MONGODB_URI is missing or using a placeholder. Please check your environment variables.');
     }
     
+    // Clean raw environment prefix if the user accidentally copied the label itself
+    if (uri.startsWith('MONGODB_URI=')) {
+      uri = uri.substring('MONGODB_URI='.length).trim();
+    } else if (uri.includes('MONGODB_URI=')) {
+      uri = uri.substring(uri.indexOf('MONGODB_URI=') + 'MONGODB_URI='.length).trim();
+    }
+
     // Sanitize
     uri = uri.trim().replace(/^["'](.+)["']$/, '$1').trim();
     
@@ -128,15 +135,21 @@ const seed = async () => {
     await Product.deleteMany({});
     await Product.insertMany(nepaliProducts);
 
-    const adminExists = await User.findOne({ email: 'admin@namastemart.com' });
-    if (!adminExists) {
-        await User.create({
-            fullName: 'System Admin',
-            email: 'admin@namastemart.com',
-            password: 'AdminPassword123',
-            role: 'Admin'
-        });
-    }
+    await User.deleteMany({ email: { $in: ['admin@namastemart.com', 'cashier@namastemart.com'] } });
+    
+    await User.create({
+        fullName: 'System Admin',
+        email: 'admin@namastemart.com',
+        password: 'adminPass123',
+        role: 'Admin'
+    });
+
+    await User.create({
+        fullName: 'Mart Cashier',
+        email: 'cashier@namastemart.com',
+        password: 'cashierPass123',
+        role: 'Cashier'
+    });
 
     const configExists = await AppConfig.findOne();
     if (!configExists) {

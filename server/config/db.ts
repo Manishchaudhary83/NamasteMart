@@ -9,6 +9,13 @@ export const connectDB = async () => {
     return false;
   }
 
+  // Clean raw environment prefix if the user accidentally copied the label itself
+  if (uri.startsWith('MONGODB_URI=')) {
+    uri = uri.substring('MONGODB_URI='.length).trim();
+  } else if (uri.includes('MONGODB_URI=')) {
+    uri = uri.substring(uri.indexOf('MONGODB_URI=') + 'MONGODB_URI='.length).trim();
+  }
+
   // Sanitize: Remove accidental surrounding quotes and whitespace
   uri = uri.trim().replace(/^["'](.+)["']$/, '$1').trim();
 

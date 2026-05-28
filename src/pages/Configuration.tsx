@@ -81,8 +81,26 @@ export default function Configuration() {
               eSewa Digital Rails
             </h3>
             <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Merchant UID</label>
-              <input name="esewaMerchantCode" defaultValue={config?.esewaMerchantCode} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-purple-500 text-sm font-mono font-bold uppercase" />
+              <div className="flex items-center justify-between">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Merchant UID (eSewa Code)</label>
+                <a 
+                  href="https://business.esewa.com.np" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-[8px] text-purple-600 font-bold hover:underline uppercase tracking-widest"
+                >
+                  Get Merchant ID ↗
+                </a>
+              </div>
+              <input 
+                name="esewaMerchantCode" 
+                defaultValue={config?.esewaMerchantCode} 
+                placeholder="e.g. EPAYTEST or Custom Merchant ID" 
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-purple-500 text-sm font-mono font-bold uppercase" 
+              />
+              <p className="text-[10px] text-slate-500 font-medium pl-1 leading-relaxed">
+                Obtain this code from your registered <strong className="text-slate-700">eSewa Business Portal</strong> dashboard. If you are testing, use the fallback test code <code className="bg-purple-100 text-purple-700 px-1 rounded font-bold">EPAYTEST</code>.
+              </p>
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Private Auth Key</label>

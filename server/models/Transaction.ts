@@ -4,6 +4,7 @@ const TransactionSchema = new Schema({
   invoiceId: { type: String, required: true, unique: true, index: true },
   cashierId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   customerId: { type: Schema.Types.ObjectId, ref: 'Customer' },
+  customerName: { type: String },
   customerPhone: { type: String },
   items: [{
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },

@@ -54,8 +54,15 @@ router.get('/billing/transactions', protect, async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
         return res.json(billCtrl.MOCK_TRANSACTIONS);
     }
-    const transactions = await Transaction.find({}).sort({ createdAt: -1 }).limit(100);
-    res.json(transactions);
+    const transactions = await Transaction.find({}).populate('customerId', 'fullName').sort({ createdAt: -1 }).limit(100);
+    const formatted = transactions.map(t => {
+        const obj = t.toObject();
+        return {
+            ...obj,
+            customerName: obj.customerName || (obj.customerId && typeof obj.customerId === 'object' && 'fullName' in obj.customerId ? (obj.customerId as any).fullName : undefined) || 'Walk-in'
+        };
+    });
+    res.json(formatted);
 });
 
 router.get('/billing/transactions/:id', protect, async (req, res) => {
@@ -66,13 +73,18 @@ router.get('/billing/transactions/:id', protect, async (req, res) => {
         return res.status(404).json({ message: 'Transaction not found in offline transaction history' });
     }
     try {
-        const transaction = await Transaction.findById(id);
+        const transaction = await Transaction.findById(id).populate('customerId', 'fullName');
         if (!transaction) {
             const mockTx = billCtrl.MOCK_TRANSACTIONS.find(tx => tx._id === id);
             if (mockTx) return res.json(mockTx);
             return res.status(404).json({ message: 'Transaction not found' });
         }
-        res.json(transaction);
+        const obj = transaction.toObject();
+        const formatted = {
+            ...obj,
+            customerName: obj.customerName || (obj.customerId && typeof obj.customerId === 'object' && 'fullName' in obj.customerId ? (obj.customerId as any).fullName : undefined) || 'Walk-in'
+        };
+        res.json(formatted);
     } catch (e: any) {
         const mockTx = billCtrl.MOCK_TRANSACTIONS.find(tx => tx._id === id);
         if (mockTx) return res.json(mockTx);
